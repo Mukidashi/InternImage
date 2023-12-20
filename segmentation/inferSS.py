@@ -12,26 +12,31 @@ from mmseg.core import get_classes
 import cv2
 import os.path as osp
 import os
+import numpy as np
 
 
-def test_single_image(model, img_name, out_dir, color_palette, opacity):
-    result = inference_segmentor(model, img_name)
+def test_single_image(model, img_name, out_dir):
+    result = inference_segmentor(model, img_name)[0]
 
-    print(type(result),len(result),type(result[0]))
-    print(result[0].shape)
-    
-    # show the results
-    if hasattr(model, 'module'):
-        model = model.module
-    img = model.show_result(img_name, result,
-                            palette=color_palette,
-                            show=False, opacity=opacity)
+    fnelem = os.path.splitext(os.path.basename(img_name))
+    oname = ".".join(fnelem[:-1]) + ".png"
     
     # save the results
     mmcv.mkdir_or_exist(out_dir)
-    out_path = osp.join(out_dir, osp.basename(img_name))
-    cv2.imwrite(out_path, img)
+    out_path = osp.join(out_dir, oname)
+    cv2.imwrite(out_path, result.astype(np.uint8))
     print(f"Result is save at {out_path}")
+
+    # rmask = (result == 0)
+    # smask = (result == 1)
+    # bmask = (result == 2)
+    # oimg = np.zeros_like(result)
+    # oimg[rmask] = 64
+    # oimg[smask] = 128
+    # oimg[bmask] = 255
+
+    # oname = ".".join(fnelem[:-1]) + "_check.jpg"
+    # cv2.imwrite(os.path.join(out_dir,oname),oimg)
 
 
 def main():
@@ -47,11 +52,6 @@ def main():
         default='ade20k',
         choices=['ade20k', 'cityscapes', 'cocostuff'],
         help='Color palette used for segmentation map')
-    parser.add_argument(
-        '--opacity',
-        type=float,
-        default=0.5,
-        help='Opacity of painted segmentation map. In (0, 1] range.')
     args = parser.parse_args()
 
     # build the model from a config file and a checkpoint file
@@ -68,9 +68,9 @@ def main():
             ext = os.path.splitext(os.path.basename(img))[-1]
             if not (ext in [".jpg",".png"]):
                 continue
-            test_single_image(model, osp.join(args.img, img), args.out, get_palette(args.palette), args.opacity)
+            test_single_image(model, osp.join(args.img, img), args.out)
     else:
-        test_single_image(model, args.img, args.out, get_palette(args.palette), args.opacity)
+        test_single_image(model, args.img, args.out)
 
 if __name__ == '__main__':
     main()
