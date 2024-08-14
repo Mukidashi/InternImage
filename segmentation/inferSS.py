@@ -11,8 +11,13 @@ from mmcv.runner import load_checkpoint
 from mmseg.core import get_classes
 import cv2
 import os.path as osp
-import os
+import os,sys
 import numpy as np
+import torch
+
+from mmdeploy.apis import torch2onnx
+
+import time
 
 
 def test_single_image(model, img_name, out_dir):
@@ -39,14 +44,14 @@ def test_single_image(model, img_name, out_dir):
     # cv2.imwrite(os.path.join(out_dir,oname),oimg)
 
 
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('img', help='Image file or a directory contains images')
     parser.add_argument('config', help='Config file')
     parser.add_argument('checkpoint', help='Checkpoint file')
     parser.add_argument('--out', type=str, default="demo", help='out dir')
-    parser.add_argument(
-        '--device', default='cuda:0', help='Device used for inference')
+    parser.add_argument('--device', default='cuda:0', help='Device used for inference')
     parser.add_argument(
         '--palette',
         default='ade20k',
@@ -61,16 +66,44 @@ def main():
         model.CLASSES = checkpoint['meta']['CLASSES']
     else:
         model.CLASSES = get_classes(args.palette)
+
+    # print(model.CLASSES)
+    # print(get_palette(args.palette))
+
+    # checkpoint['meta'] = {}
+    # checkpoint['meta']['CLASSES'] = model.CLASSES
+    # with open(os.path.join(args.out,"test.pth"), 'wb') as f:
+    #     torch.save(checkpoint, f)
+    #     f.flush()
+    # sys.exit()
+        
         
     # check arg.img is directory of a single image.
+    time_length = 0
+    img_cnt = 0
     if osp.isdir(args.img):
         for img in os.listdir(args.img):
             ext = os.path.splitext(os.path.basename(img))[-1]
             if not (ext in [".jpg",".png"]):
                 continue
+            
+            stime = time.perf_counter()
+
             test_single_image(model, osp.join(args.img, img), args.out)
+            
+            etime = time.perf_counter()
+            time_length += etime -stime
+            img_cnt += 1
     else:
+        stime = time.perf_counter()
+
         test_single_image(model, args.img, args.out)
+
+        etime = time.perf_counter()
+        time_length = etime - stime
+        imt_cnt = 1
+
+    print("Calc Time:{0} (ave:{1})".format(time_length,time_length/float(img_cnt)))
 
 if __name__ == '__main__':
     main()
