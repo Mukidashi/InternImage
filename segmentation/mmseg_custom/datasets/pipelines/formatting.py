@@ -80,3 +80,47 @@ class ToMask(object):
     def __repr__(self):
         return self.__class__.__name__ + \
                f'(ignore_index={self.ignore_index})'
+
+
+@PIPELINES.register_module(force=True)
+class RddFormatBundle(object):
+    """Rdd formatting bundle.
+
+    It simplifies the pipeline of formatting common fields, including "img"
+    and "gt_semantic_seg". These fields are formatted as follows.
+
+    - img: (1)transpose, (2)to tensor, (3)to DataContainer (stack=True)
+    - gt_semantic_seg: (1)unsqueeze dim-0 (2)to tensor,
+                       (3)to DataContainer (stack=True)
+    """
+    def __call__(self, results):
+        """Call function to transform and format common fields in results.
+
+        Args:
+            results (dict): Result dict contains the data to convert.
+
+        Returns:
+            dict: The result dict contains the data that is formatted with
+                default bundle.
+        """
+
+        if 'img' in results:
+            img = results['img']
+            if len(img.shape) < 3:
+                img = np.expand_dims(img, -1)
+            img = np.ascontiguousarray(img.transpose(2, 0, 1))
+            results['img'] = DC(to_tensor(img), stack=True)
+        if 'gt_semantic_seg' in results:
+            # convert to long
+            seg_map = results['gt_semantic_seg'].astype(np.float32)/255.0
+            seg_map = np.ascontiguousarray(seg_map.transpose(2, 0, 1))
+            results['gt_semantic_seg'] = DC(to_tensor(seg_map),stack=True)
+        if 'gt_masks' in results:
+            results['gt_masks'] = DC(to_tensor(results['gt_masks']))
+        if 'gt_labels' in results:
+            results['gt_labels'] = DC(to_tensor(results['gt_labels']))
+
+        return results
+
+    def __repr__(self):
+        return self.__class__.__name__
